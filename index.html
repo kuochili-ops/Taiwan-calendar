@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>𓃥 白六傳統手撕日曆</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root {
+      --ink: #0e3570;        /* 平日經典印刷藍 */
+      --paper: #fcfbf6;      /* 傳統日曆紙色 */
+      --paper-edge: #e6e2d3;
+      --red-board: #d61c18;  /* 吊板大紅 */
+      --gold-text: #f7d36f;  /* 吊板燙金字 */
+    }
+
+    body.is-red-day {
+      --ink: #c81d18;        /* 週日與國定放假日自動切換喜氣紅 */
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: #232528;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: "Noto Serif TC", "PMingLiU", "MingLiU", "Songti TC", serif;
+      padding: 10px;
+      overflow-x: hidden;
+    }
+
+    .calendar-wrapper {
+      width: 100%;
+      max-width: 410px;
+      position: relative;
+      filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.55));
+    }
+
+    /* 紅色吊板 */
+    .header-board {
+      background: linear-gradient(180deg, #e3241f 0%, #c41612 100%);
+      height: 82px;
+      border-radius: 6px 6px 2px 2px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 18px 8px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      z-index: 5;
+    }
+
+    .hang-hole {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #232528;
+      border: 2px solid #b59a5b;
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: inset 0 2px 3px rgba(0,0,0,0.6);
+    }
+
+    .header-slogan {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      color: var(--gold-text);
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-shadow: 0 1px 2px rgba(90, 0, 0, 0.75);
+      cursor: pointer;
+    }
+
+    .rivet {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff8dc, #bfa054 65%, #6e5623 100%);
+      position: absolute;
+      bottom: 7px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+    .rivet.left { left: 22%; }
+    .rivet.right { right: 22%; }
+
+    /* 紙張疊層區 */
+    .pad-container {
+      position: relative;
+      margin: 0 12px;
+      background: var(--paper-edge);
+      padding-bottom: 6px;
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 4px 0 #d5d0be, 0 8px 0 #c2bca8;
+    }
+
+    .sheet {
+      background: var(--paper);
+      background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 0);
+      background-size: 12px 12px;
+      color: var(--ink);
+      padding: 0 10px 12px;
+      position: relative;
+      transform-origin: top center;
+      transition: color 0.25s ease;
+      cursor: pointer;
+    }
+
+    .tear-perforation {
+      height: 16px;
+      border-bottom: 1.5px dashed var(--ink);
+      margin: 0 -10px 8px;
+      position: relative;
+      opacity: 0.75;
+    }
+    .tear-perforation::before,
+    .tear-perforation::after {
+      content: "";
+      position: absolute;
+      bottom: -4px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #232528;
+    }
+    .tear-perforation::before { left: -4px; }
+    .tear-perforation::after { right: -4px; }
+
+    .sheet.tearing {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      pointer-events: none;
+      animation: tearOff 0.65s cubic-bezier(0.32, 0.05, 0.55, 1) forwards;
+      box-shadow: 0 18px 25px rgba(0,0,0,0.25);
+    }
+
+    @keyframes tearOff {
+      0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+      30% { transform: translateY(16px) rotate(-2.5deg) scale(0.99); opacity: 1; }
+      100% { transform: translateY(240px) rotate(14deg) scale(0.92); opacity: 0; }
+    }
+
+    /* 主版面三欄 */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 64px 1fr 64px;
+      gap: 2px;
+      align-items: stretch;
+    }
+
+    .col-left, .col-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .roc-year {
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      white-space: nowrap;
+      margin-bottom: 3px;
+    }
+
+    .mini-cal {
+      width: 100%;
+      border: 1px solid var(--ink);
+      font-family: sans-serif;
+      font-size: 7px;
+      text-align: center;
+      margin-bottom: 8px;
+      border-collapse: collapse;
+    }
+    .mini-cal th {
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 700;
+      padding: 1px 0;
+    }
+    .mini-cal td {
+      padding: 1px 0;
+      line-height: 1.15;
+    }
+    .mini-cal td.today-dot {
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 50%;
+      font-weight: 900;
+    }
+
+    .lunar-badge {
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 11.5px;
+      font-weight: 900;
+      padding: 2px 7px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    .lunar-vertical {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      font-size: 25px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1.05;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 中欄：超大高瘦雙線條日期 */
+    .col-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .big-number-box {
+      width: 100%;
+      height: 256px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .big-number-box svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .weekday-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .weekday-text {
+      font-size: 27px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1.1;
+    }
+
+    .holiday-badge {
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 12px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      display: none;
+    }
+    .holiday-badge.show {
+      display: inline-block;
+    }
+
+    /* 右欄 */
+    .west-year {
+      font-family: "Arial Black", sans-serif;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 0.3px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .month-badge {
+      width: 48px;
+      height: 42px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      font-family: sans-serif;
+    }
+    .month-badge .m-zh {
+      font-size: 15px;
+      font-weight: 900;
+      line-height: 1.05;
+    }
+    .month-badge .m-en {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border-top: 1px solid rgba(255,255,255,0.6);
+      padding-top: 1px;
+      margin-top: 1px;
+    }
+
+    .tip-vertical {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      font-size: 9px;
+      line-height: 1.3;
+      height: 195px;
+      overflow: hidden;
+      letter-spacing: 0.3px;
+      font-weight: 600;
+    }
+
+    /* 黃曆宜忌與節氣列 */
+    .almanac-row {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1.5px solid var(--ink);
+      font-size: 10px;
+    }
+
+    .almanac-box {
+      border: 1px solid var(--ink);
+      padding: 3px 5px;
+      line-height: 1.4;
+    }
+
+    .tag-inv {
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 900;
+      padding: 0 3px;
+      margin-right: 3px;
+      display: inline-block;
+    }
+
+    .solar-highlight {
+      font-weight: 900;
+      text-decoration: underline;
+    }
+
+    /* 底部廣告／記事／行事曆提醒欄 */
+    .ad-box {
+      margin-top: 8px;
+      border: 2px solid var(--ink);
+      border-radius: 6px;
+      min-height: 72px;
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .ad-box.has-events {
+      background: rgba(14, 53, 112, 0.05);
+      align-items: stretch;
+      text-align: left;
+      padding: 6px 10px;
+    }
+    body.is-red-day .ad-box.has-events {
+      background: rgba(200, 29, 24, 0.05);
+    }
+
+    .ad-title {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-bottom: 2px;
+    }
+
+    .ad-sub {
+      font-size: 11px;
+      opacity: 0.88;
+      letter-spacing: 1px;
+    }
+
+    .event-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 900;
+      border-bottom: 1px dashed var(--ink);
+      padding-bottom: 3px;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .event-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .event-item {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-size: 12.5px;
+      font-weight: 800;
+      line-height: 1.25;
+      font-family: "Noto Sans TC", sans-serif;
+    }
+    .event-time-tag {
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .event-summary {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 底部操作列 */
+    .control-bar {
+      margin-top: 12px;
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.12);
+      color: #f2efe9;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 12.5px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    .btn:active { background: rgba(255, 255, 255, 0.28); }
+    .btn.connected {
+      border-color: #7ee2a8;
+      color: #b7f7d2;
+    }
+
+    /* 設定彈窗 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.68);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 14px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff;
+      color: #222;
+      width: 100%;
+      max-width: 360px;
+      max-height: 88dvh;
+      overflow-y: auto;
+      border-radius: 14px;
+      padding: 18px;
+      font-family: sans-serif;
+    }
+    .modal h3 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .section-box {
+      background: #f5f7fa;
+      border: 1px solid #e1e5ec;
+      border-radius: 10px;
+      padding: 11px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0e3570;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-pill {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .status-pill.ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .hint-text {
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .field { margin-bottom: 9px; }
+    .field label { display: block; font-size: 12px; color: #444; margin-bottom: 3px; font-weight: 600; }
+    .field input, .field select {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      user-select: text;
+    }
+    .action-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-mini {
+      padding: 7px 11px;
+      border-radius: 7px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #1e293b;
+    }
+    .btn-mini.primary {
+      background: #0e3570;
+      color: #fff;
+      border-color: #0e3570;
+    }
+    .btn-mini.danger {
+      color: #b91c1c;
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    .guide-details {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #334155;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 7px 9px;
+    }
+    .guide-details summary {
+      font-weight: 700;
+      cursor: pointer;
+      color: #0e3570;
+    }
+    .guide-details ol {
+      margin: 6px 0 0;
+      padding-left: 18px;
+      line-height: 1.55;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .modal-actions button {
+      padding: 8px 15px;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn-save { background: #0e3570; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="calendar-wrapper">
+    <div class="header-board" id="headerBoard" title="點擊可修改吊板祝賀詞">
+      <div class="hang-hole"></div>
+      <div class="header-slogan" id="sloganDisplay">
+        <span>萬</span><span>事</span><span>如</span><span>意</span>
+      </div>
+      <div class="rivet left"></div>
+      <div class="rivet right"></div>
+    </div>
+
+    <div class="pad-container" id="padContainer">
+      <div class="sheet" id="activeSheet" title="點擊或向下滑動撕下一頁">
+        <div class="tear-perforation"></div>
+
+        <div class="main-grid">
+          <div class="col-left">
+            <div class="roc-year" id="rocYearText">115年 歲次丙午</div>
+            <table class="mini-cal" id="miniCal"></table>
+            <div class="lunar-badge" id="lunarSizeBadge">農大</div>
+            <div class="lunar-vertical" id="lunarDateText">十月十七日</div>
+          </div>
+
+          <div class="col-center">
+            <div class="big-number-box" id="bigNumberSvg"></div>
+            <div class="weekday-row">
+              <div class="weekday-text" id="weekdayText">星期三</div>
+              <div class="holiday-badge" id="holidayBadge">國慶日</div>
+            </div>
+          </div>
+
+          <div class="col-right">
+            <div class="west-year" id="westYearText">2026</div>
+            <div class="month-badge">
+              <div class="m-zh" id="monthZhText">11月</div>
+              <div class="m-en" id="monthEnText">NOV</div>
+            </div>
+            <div class="tip-vertical" id="dailyTipText"></div>
+          </div>
+        </div>
+
+        <div class="almanac-row">
+          <div class="almanac-box">
+            <div><span class="tag-inv">宜</span><span id="yiText">祭祀 祈福 出行 納采</span></div>
+            <div style="margin-top:2px;"><span class="tag-inv">忌</span><span id="jiText">動土 破土 安葬</span></div>
+          </div>
+          <div class="almanac-box">
+            <div><span class="tag-inv">節氣</span><span id="solarTermText">廿八大雪</span></div>
+            <div style="margin-top:2px;"><span class="tag-inv" id="dayGzBadge">甲子日</span><span id="chongText">沖馬煞南</span></div>
+          </div>
+        </div>
+
+        <div class="ad-box" id="adBox" title="點擊可管理行事曆與今日提醒">
+          <div class="ad-title" id="adTitleDisplay">𓃥 白六每日好心情</div>
+          <div class="ad-sub" id="adSubDisplay">平安順心・日日是好日</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="control-bar">
+    <button class="btn" id="prevBtn">◀ 前一日</button>
+    <button class="btn" id="todayBtn">回到今日</button>
+    <button class="btn" id="tearBtn">撕下一頁 ▶</button>
+    <button class="btn" id="syncQuickBtn">📅 連結私人行事曆</button>
+    <button class="btn" id="settingsBtn">⚙️</button>
+  </div>
+
+  <!-- 設定與行事曆連結彈窗 -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <h3>
+        <span>𓃥 白六日曆與私人行事曆</span>
+        <span style="font-size:12px;color:#64748b;cursor:pointer;" id="closeXBtn">✕</span>
+      </h3>
+
+      <!-- 行事曆連結專區（免公開共享） -->
+      <div class="section-box">
+        <div class="section-title">
+          <span>🔒 連結私人行事曆（免公開共享）</span>
+          <span class="status-pill" id="calSyncStatus">尚未連結</span>
+        </div>
+        <div class="hint-text">
+          您的行程僅儲存在本機瀏覽器，無需將行事曆設為公開。當日有提醒時會自動顯示在底部區塊。
+        </div>
+
+        <!-- 方式一：Google 私人行事曆一鍵授權 -->
+        <div class="action-row" style="margin-bottom:8px;">
+          <button type="button" class="btn-mini primary" id="connectGoogleBtn">🔗 連結 Google 私人行事曆</button>
+          <button type="button" class="btn-mini" id="refreshGoogleBtn" style="display:none;">重新同步</button>
+        </div>
+
+        <!-- 進階開發者 Client ID（若未預填才顯示） -->
+        <div class="field" id="clientIdFieldWrap" style="display:none;">
+          <label>開發者 Google Client ID（填入程式碼後此欄自動隱藏）</label>
+          <input type="text" id="googleClientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+        </div>
+
+        <!-- 方式二：iPhone / 手機私人行事曆 -->
+        <div class="action-row">
+          <input type="file" id="icsFileInput" accept=".ics,text/calendar" style="display:none;" />
+          <button type="button" class="btn-mini" id="importIcsBtn">📂 匯入私人 .ics 檔</button>
+          <button type="button" class="btn-mini" id="addQuickNoteBtn">➕ 新增當日提醒</button>
+          <button type="button" class="btn-mini danger" id="clearEventsBtn">清除</button>
+        </div>
+
+        <!-- iPhone 捷徑免公開共享教學 -->
+        <details class="guide-details">
+          <summary>📱 iPhone 如何不公開共享就自動同步行事曆？</summary>
+          <ol>
+            <li>打開 iPhone 內建的 <strong>「捷徑」App</strong> → 點右上角 <strong>「+」</strong> 新增捷徑。</li>
+            <li>加入動作 <strong>「尋找行事曆行程」</strong>（條件設為「開始日期在未來 30 天內」）。</li>
+            <li>加入動作 <strong>「製作 ICS 檔案」</strong>（或用文字組合「開始日期|標題」）。</li>
+            <li>加入動作 <strong>「開啟 URL」</strong>，網址填：<br><code id="shortcutUrlHint" style="word-break:break-all;color:#0e3570;"></code></li>
+            <li>以後只要點一下該捷徑（或設為每天早上自動化），就會在本機直接把私人行程帶入日曆，<strong>完全不用開啟公開共享</strong>。</li>
+          </ol>
+        </details>
+      </div>
+
+      <!-- 外觀與日期設定 -->
+      <div class="section-box" style="margin-bottom:0;">
+        <div class="section-title"><span>🎨 日曆版面與日期</span></div>
+        <div class="field">
+          <label>跳轉日期</label>
+          <input type="date" id="datePicker" />
+        </div>
+        <div class="field">
+          <label>紅色吊板字樣（建議4字）</label>
+          <input type="text" id="sloganInput" maxlength="8" placeholder="萬事如意" />
+        </div>
+        <div class="field">
+          <label>無提醒時的預設主標題</label>
+          <input type="text" id="adTitleInput" maxlength="20" placeholder="𓃥 白六每日好心情" />
+        </div>
+        <div class="field">
+          <label>無提醒時的預設副標題</label>
+          <input type="text" id="adSubInput" maxlength="36" placeholder="平安順心・日日是好日" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>印刷單色模式</label>
+          <select id="colorModeSelect">
+            <option value="auto">傳統自動（平日藍／週日及放假日紅）</option>
+            <option value="blue">全單色普魯士藍</option>
+            <option value="red">全單色喜氣紅</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="cancelModalBtn">取消</button>
+        <button type="button" class="btn-save" id="saveModalBtn">儲存套用</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 【作者設定區】在這裡填入你的 Google OAuth Client ID 後部署，
+    // 一般使用者打開網頁時就會隱藏輸入框，直接點按鈕按「同意」就能連結自己的私人行事曆！
+    const DEFAULT_GOOGLE_CLIENT_ID = "";
+    // =========================================================================
+
+    const MONTH_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const WEEKDAYS_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+    const CN_NUMS = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+    const LUNAR_MONTH_NAMES = ["", "正月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+    const STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
+    const BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+    const ZODIAC_CHONG = ["沖馬煞南", "沖羊煞東", "沖猴煞北", "沖雞煞西", "沖狗煞南", "沖豬煞東", "沖鼠煞北", "沖牛煞西", "沖虎煞南", "沖兔煞東", "沖龍煞北", "沖蛇煞西"];
+
+    const JIAN_CHU_RULES = [
+      { name: "建", yi: "出行 赴任 祈福 祭祀", ji: "動土 開倉 乘船 嫁娶" },
+      { name: "除", yi: "沐浴 掃舍 求醫 解除", ji: "嫁娶 遠行 赴任 開市" },
+      { name: "滿", yi: "祭祀 祈福 嫁娶 納財", ji: "栽種 動土 破土 安葬" },
+      { name: "平", yi: "修造 塗泥 裁衣 飾垣", ji: "祈福 求嗣 赴任 嫁娶" },
+      { name: "定", yi: "冠笄 嫁娶 訂盟 交易", ji: "訴訟 出行 詞訟 針灸" },
+      { name: "執", yi: "祭祀 祈福 捕捉 栽種", ji: "開市 交易 移徙 遠行" },
+      { name: "破", yi: "破屋 壞垣 求醫 治病", ji: "嫁娶 簽約 開市 移徙" },
+      { name: "危", yi: "祭祀 祈福 安床 拆卸", ji: "登高 行船 出行 伐木" },
+      { name: "成", yi: "開市 交易 立券 嫁娶", ji: "訴訟 詞訟 爭執 針灸" },
+      { name: "收", yi: "納財 納畜 栽種 捕捉", ji: "開市 破土 安葬 針灸" },
+      { name: "開", yi: "開市 交易 入宅 出行", ji: "破土 安葬 伐木 針灸" },
+      { name: "閉", yi: "祭祀 祈福 築堤 補垣", ji: "開市 出行 求醫 針灸" }
+    ];
+
+    const SOLAR_TERMS = [
+      { name: "小寒", month: 1, c: 5.4055 }, { name: "大寒", month: 1, c: 20.12 },
+      { name: "立春", month: 2, c: 3.87 },   { name: "雨水", month: 2, c: 18.73 },
+      { name: "驚蟄", month: 3, c: 5.63 },   { name: "春分", month: 3, c: 20.646 },
+      { name: "清明", month: 4, c: 4.81 },   { name: "穀雨", month: 4, c: 20.1 },
+      { name: "立夏", month: 5, c: 5.52 },   { name: "小滿", month: 5, c: 21.04 },
+      { name: "芒種", month: 6, c: 5.678 },  { name: "夏至", month: 6, c: 21.37 },
+      { name: "小暑", month: 7, c: 7.108 },  { name: "大暑", month: 7, c: 22.83 },
+      { name: "立秋", month: 8, c: 7.5 },    { name: "處暑", month: 8, c: 23.13 },
+      { name: "白露", month: 9, c: 7.646 },  { name: "秋分", month: 9, c: 23.042 },
+      { name: "寒露", month: 10, c: 8.318 }, { name: "霜降", month: 10, c: 23.438 },
+      { name: "立冬", month: 11, c: 7.438 }, { name: "小雪", month: 11, c: 22.36 },
+      { name: "大雪", month: 12, c: 7.18 },  { name: "冬至", month: 12, c: 21.94 }
+    ];
+
+    const DAILY_TIPS = [
+      "【養生茶飲】枸杞菊花茶：取白菊花五朵、枸杞十粒，沸水沖泡五分鐘，清肝明目、潤燥舒心。",
+      "【生活智慧】晨起一杯溫開水，順暢氣血精神好；凡事從容不迫，日日皆是好時節。",
+      "【節氣調養】早晚溫差變化大，注意頭頸與足部保暖，睡前溫水泡腳助眠安神。",
+      "【養生茶飲】紅棗桂圓茶：去核紅棗三顆、桂圓肉五粒，熱水悶泡十分鐘，溫潤補氣暖身心。",
+      "【處世箴言】心寬一寸，路寬一丈；常懷感恩之心，福氣自然常伴左右。",
+      "【養生食療】山藥蓮子粥：健脾胃、益腎氣，口感綿密溫和，四季皆宜之家庭滋補佳品。",
+      "【居家小識】室內適度通風換氣，保持陽光充足，綠植點綴案頭更添生機。"
+    ];
+
+    let currentDate = new Date();
+    let config = JSON.parse(localStorage.getItem("white6_calendar_cfg") || "{}");
+    config = {
+      slogan: config.slogan || "萬事如意",
+      adTitle: config.adTitle || "𓃥 白六每日好心情",
+      adSub: config.adSub || "平安順心・日日是好日",
+      colorMode: config.colorMode || "auto",
+      googleClientId: DEFAULT_GOOGLE_CLIENT_ID || config.googleClientId || ""
+    };
+
+    let calendarEvents = JSON.parse(localStorage.getItem("white6_calendar_events") || "[]");
+    let googleAccessToken = null;
+    let googleTokenClient = null;
+
+    function formatDateKey(d) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // 接收從 iPhone 捷徑 (URL ?events=YYYY-MM-DD|HH:MM|標題;...) 傳入的本機私人行事曆
+    function ingestUrlEventsIfPresent() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const rawEvents = params.get("events");
+        if (!rawEvents) return;
+
+        const lines = rawEvents.split(";").map(s => s.trim()).filter(Boolean);
+        const incoming = [];
+        lines.forEach((line, idx) => {
+          const parts = line.split("|");
+          if (parts.length >= 2) {
+            const dateKey = parts[0].trim();
+            const time = parts.length >= 3 ? (parts[1].trim() || "全天") : "全天";
+            const summary = (parts.length >= 3 ? parts.slice(2).join("|") : parts[1]).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey) && summary) {
+              incoming.push({
+                id: "shortcut_" + idx + "_" + dateKey,
+                dateKey,
+                time,
+                summary,
+                source: "手機行事曆"
+              });
+            }
+          }
+        });
+
+        if (incoming.length > 0) {
+          calendarEvents = calendarEvents.filter(e => e.source !== "手機行事曆").concat(incoming);
+          localStorage.setItem("white6_calendar_events", JSON.stringify(calendarEvents));
+          // 清除網址參數保持乾淨
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {}
+    }
+
+    function playTearSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const duration = 0.28;
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          const env = Math.sin((i / bufferSize) * Math.PI);
+          data[i] = (Math.random() * 2 - 1) * env * 0.45;
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(1400, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(3200, ctx.currentTime + duration);
+        filter.Q.value = 1.8;
+        noise.connect(filter);
+        filter.connect(ctx.destination);
+        noise.start();
+      } catch (e) {}
+    }
+
+    function toLunarDayShort(dayNum) {
+      if (dayNum === 10) return "初十";
+      if (dayNum === 20) return "二十";
+      if (dayNum === 30) return "三十";
+      if (dayNum < 10) return "初" + CN_NUMS[dayNum];
+      if (dayNum < 20) return "十" + CN_NUMS[dayNum - 10];
+      return "廿" + CN_NUMS[dayNum - 20];
+    }
+
+    function parseLunarDayValue(raw) {
+      if (!raw) return 1;
+      const numMatch = raw.match(/\d+/);
+      if (numMatch) return parseInt(numMatch[0], 10);
+
+      const clean = raw.replace("日", "").trim();
+      const map = { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+      if (clean === "初十") return 10;
+      if (clean === "二十") return 20;
+      if (clean === "三十") return 30;
+      if (clean.startsWith("初")) return map[clean[1]] || 1;
+      if (clean.startsWith("十")) return 10 + (map[clean[1]] || 0);
+      if (clean.startsWith("廿")) return 20 + (map[clean[1]] || 0);
+      return 1;
+    }
+
+    function getLunarInfo(date) {
+      try {
+        const enFmt = new Intl.DateTimeFormat("en-u-ca-chinese", {
+          year: "numeric", month: "numeric", day: "numeric"
+        });
+        const parts = enFmt.formatToParts(date);
+        let relYear = date.getFullYear();
+        let rawMonth = "1";
+        let rawDay = "1";
+
+        parts.forEach(p => {
+          if (p.type === "relatedYear" || p.type === "year") relYear = parseInt(p.value, 10) || relYear;
+          if (p.type === "month") rawMonth = p.value;
+          if (p.type === "day") rawDay = p.value;
+        });
+
+        const isLeap = rawMonth.includes("bis");
+        const monthNum = parseInt(rawMonth.replace(/\D/g, ""), 10) || 1;
+        const dayNum = parseLunarDayValue(rawDay);
+
+        const gzIdx = (((relYear - 4) % 60) + 60) % 60;
+        const ganZhi = STEMS[gzIdx % 10] + BRANCHES[gzIdx % 12];
+        const monthStr = (isLeap ? "閏" : "") + (LUNAR_MONTH_NAMES[monthNum] || "正月");
+        const dayShort = toLunarDayShort(dayNum);
+
+        const test30 = new Date(date.getFullYear(), date.getMonth(), date.getDate() + (30 - dayNum));
+        const testMonth = (enFmt.formatToParts(test30).find(p => p.type === "month") || {}).value;
+        const isBig = testMonth === rawMonth;
+
+        return {
+          ganZhi, monthStr, monthNum, dayNum, dayShort,
+          dayFull: dayShort + "日",
+          size: isBig ? "農大" : "農小"
+        };
+      } catch (e) {
+        return { ganZhi: "丙午", monthStr: "十月", monthNum: 10, dayNum: 17, dayShort: "十七", dayFull: "十七日", size: "農大" };
+      }
+    }
+
+    function getAlmanacInfo(date, lunarMonthNum) {
+      const baseUtc = Date.UTC(2024, 0, 1);
+      const targetUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+      const diffDays = Math.round((targetUtc - baseUtc) / 86400000);
+      const gzIndex = ((diffDays % 60) + 60) % 60;
+
+      const stem = STEMS[gzIndex % 10];
+      const branchIdx = gzIndex % 12;
+      const branch = BRANCHES[branchIdx];
+
+      const monthBranchIdx = (lunarMonthNum + 1) % 12;
+      const jianChuIdx = (branchIdx - monthBranchIdx + 12) % 12;
+      const rule = JIAN_CHU_RULES[jianChuIdx];
+
+      return {
+        dayGz: `${stem}${branch}日`,
+        starName: `${rule.name}日`,
+        yi: rule.yi,
+        ji: rule.ji,
+        chong: ZODIAC_CHONG[branchIdx]
+      };
+    }
+
+    function getYearSolarTerms(year) {
+      const y = year - 2000;
+      return SOLAR_TERMS.map((st, idx) => {
+        const lAdj = idx < 2 ? Math.floor((y - 1) / 4) : Math.floor(y / 4);
+        let day = Math.floor(y * 0.2422 + st.c) - lAdj;
+        if (year === 2026 && st.name === "雨水") day = 18;
+        const dObj = new Date(year, st.month - 1, day);
+        return { name: st.name, date: dObj };
+      });
+    }
+
+    function getSolarTermDisplay(date) {
+      const y = date.getFullYear();
+      const terms = [...getYearSolarTerms(y), ...getYearSolarTerms(y + 1)];
+      const todayStart = new Date(y, date.getMonth(), date.getDate()).getTime();
+
+      for (const t of terms) {
+        const tTime = t.date.getTime();
+        if (tTime === todayStart) {
+          return { text: `今日【${t.name}】`, isToday: true };
+        }
+        if (tTime > todayStart) {
+          const lInfo = getLunarInfo(t.date);
+          return { text: `${lInfo.dayShort}${t.name}`, isToday: false };
+        }
+      }
+      return { text: "冬至", isToday: false };
+    }
+
+    function getTaiwanHoliday(date, lunar, solarTermObj) {
+      const m = date.getMonth() + 1;
+      const d = date.getDate();
+      const key = `${m}-${d}`;
+
+      const solarHolidays = {
+        "1-1": "元旦開國紀念日",
+        "2-28": "和平紀念日",
+        "4-4": "兒童節",
+        "5-1": "勞動節",
+        "9-28": "教師節",
+        "10-10": "國慶日",
+        "10-25": "台灣光復節",
+        "12-25": "行憲紀念日"
+      };
+      if (solarHolidays[key]) return solarHolidays[key];
+      if (solarTermObj.isToday && solarTermObj.text.includes("清明")) return "民族掃墓節";
+
+      if (lunar.monthNum === 1 && lunar.dayNum === 1) return "春節初一";
+      if (lunar.monthNum === 1 && lunar.dayNum === 2) return "春節初二";
+      if (lunar.monthNum === 1 && lunar.dayNum === 3) return "春節初三";
+      if (lunar.monthNum === 5 && lunar.dayNum === 5) return "端午節";
+      if (lunar.monthNum === 8 && lunar.dayNum === 15) return "中秋節";
+
+      const tomorrow = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+      const tmrLunar = getLunarInfo(tomorrow);
+      if (tmrLunar.monthNum === 1 && tmrLunar.dayNum === 1) return "農曆除夕";
+
+      return null;
+    }
+
+    function renderBigNumberSVG(dayNum) {
+      const text = String(dayNum);
+      const isTwoDigits = text.length > 1;
+      const fontSize = isTwoDigits ? 148 : 162;
+      const scaleX = isTwoDigits ? 0.92 : 1.15;
+
+      return `
+        <svg viewBox="0 0 210 250" preserveAspectRatio="xMidYMid meet">
+          <g transform="translate(105, 128) scale(${scaleX}, 1.62)">
+            <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+              font-family="'Arial Black', 'Impact', sans-serif"
+              font-weight="900" font-size="${fontSize}"
+              fill="var(--ink)" stroke="var(--ink)" stroke-width="12" stroke-linejoin="round">${text}</text>
+            <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+              font-family="'Arial Black', 'Impact', sans-serif"
+              font-weight="900" font-size="${fontSize}"
+              fill="var(--paper)" stroke="var(--paper)" stroke-width="6" stroke-linejoin="round">${text}</text>
+            <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+              font-family="'Arial Black', 'Impact', sans-serif"
+              font-weight="900" font-size="${fontSize}"
+              fill="var(--ink)">${text}</text>
+          </g>
+        </svg>
+      `;
+    }
+
+    function renderMiniCalendar(date) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const todayDate = date.getDate();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      let html = `<thead><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr></thead><tbody><tr>`;
+      for (let i = 0; i < firstDay; i++) html += `<td></td>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const cls = d === todayDate ? ` class="today-dot"` : "";
+        html += `<td${cls}>${d}</td>`;
+        if ((firstDay + d) % 7 === 0 && d !== daysInMonth) html += `</tr><tr>`;
+      }
+      const rem = (firstDay + daysInMonth) % 7;
+      if (rem !== 0) {
+        for (let i = rem; i < 7; i++) html += `<td></td>`;
+      }
+      html += `</tr></tbody>`;
+      document.getElementById("miniCal").innerHTML = html;
+    }
+
+    function getEventsForDate(date) {
+      const targetKey = formatDateKey(date);
+      const tMonth = date.getMonth() + 1;
+      const tDay = date.getDate();
+      const tDow = date.getDay();
+
+      return calendarEvents.filter(ev => {
+        if (ev.dateKey === targetKey) return true;
+        if (!ev.rrule || ev.dateKey > targetKey) return false;
+        const [, mStr, dStr] = ev.dateKey.split("-");
+        const eMonth = parseInt(mStr, 10);
+        const eDay = parseInt(dStr, 10);
+        if (ev.rrule.includes("FREQ=YEARLY")) return eMonth === tMonth && eDay === tDay;
+        if (ev.rrule.includes("FREQ=MONTHLY")) return eDay === tDay;
+        if (ev.rrule.includes("FREQ=WEEKLY")) {
+          const baseDate = new Date(ev.dateKey + "T00:00:00");
+          return baseDate.getDay() === tDow;
+        }
+        return false;
+      }).sort((a, b) => (a.time === "全天" ? -1 : a.time.localeCompare(b.time)));
+    }
+
+    function renderBottomReminderBox(date) {
+      const adBox = document.getElementById("adBox");
+      const todayEvents = getEventsForDate(date);
+
+      if (todayEvents.length === 0) {
+        adBox.classList.remove("has-events");
+        adBox.innerHTML = `
+          <div class="ad-title">${escapeHtml(config.adTitle)}</div>
+          <div class="ad-sub">${escapeHtml(config.adSub)}</div>
+        `;
+        return;
+      }
+
+      adBox.classList.add("has-events");
+      const visibleEvents = todayEvents.slice(0, 3);
+      const extraCount = todayEvents.length - visibleEvents.length;
+      const sourceLabel = [...new Set(todayEvents.map(e => e.source || "行事曆"))].join("・");
+
+      let itemsHtml = visibleEvents.map(ev => `
+        <div class="event-item">
+          <span class="event-time-tag">${escapeHtml(ev.time)}</span>
+          <span class="event-summary">${escapeHtml(ev.summary)}</span>
+        </div>
+      `).join("");
+
+      if (extraCount > 0) {
+        itemsHtml += `<div style="font-size:10px;opacity:0.8;text-align:right;">…還有 ${extraCount} 項提醒</div>`;
+      }
+
+      adBox.innerHTML = `
+        <div class="event-header-bar">
+          <span>📌 今日提醒事項（${todayEvents.length}筆）</span>
+          <span>${escapeHtml(sourceLabel)}</span>
+        </div>
+        <div class="event-list">${itemsHtml}</div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return String(str || "").replace(/[&<>"']/g, s => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[s]));
+    }
+
+    function renderCalendar(date) {
+      const y = date.getFullYear();
+      const m = date.getMonth();
+      const d = date.getDate();
+      const dow = date.getDay();
+
+      const lunar = getLunarInfo(date);
+      const solarTermObj = getSolarTermDisplay(date);
+      const holidayName = getTaiwanHoliday(date, lunar, solarTermObj);
+      const almanac = getAlmanacInfo(date, lunar.monthNum);
+
+      const isRedDay = config.colorMode === "red" || (config.colorMode === "auto" && (dow === 0 || Boolean(holidayName)));
+      document.body.classList.toggle("is-red-day", isRedDay);
+
+      document.getElementById("sloganDisplay").innerHTML = [...config.slogan].map(ch => `<span>${ch}</span>`).join("");
+
+      const rocYear = y - 1911;
+      document.getElementById("rocYearText").textContent = `${rocYear}年 歲次${lunar.ganZhi}`;
+      document.getElementById("lunarSizeBadge").textContent = lunar.size;
+      document.getElementById("lunarDateText").textContent = `${lunar.monthStr}${lunar.dayFull}`;
+      renderMiniCalendar(date);
+
+      document.getElementById("bigNumberSvg").innerHTML = renderBigNumberSVG(d);
+      document.getElementById("weekdayText").textContent = WEEKDAYS_ZH[dow];
+
+      const badgeEl = document.getElementById("holidayBadge");
+      if (holidayName) {
+        badgeEl.textContent = holidayName;
+        badgeEl.classList.add("show");
+      } else {
+        badgeEl.classList.remove("show");
+      }
+
+      document.getElementById("westYearText").textContent = y;
+      document.getElementById("monthZhText").textContent = `${m + 1}月`;
+      document.getElementById("monthEnText").textContent = MONTH_EN[m];
+
+      const daySeed = Math.floor(date.getTime() / 86400000);
+      document.getElementById("dailyTipText").textContent = DAILY_TIPS[Math.abs(daySeed) % DAILY_TIPS.length];
+
+      document.getElementById("yiText").textContent = almanac.yi;
+      document.getElementById("jiText").textContent = almanac.ji;
+      document.getElementById("dayGzBadge").textContent = `${almanac.dayGz}・${almanac.starName}`;
+      document.getElementById("chongText").textContent = almanac.chong;
+
+      const solarEl = document.getElementById("solarTermText");
+      solarEl.textContent = solarTermObj.text;
+      solarEl.classList.toggle("solar-highlight", solarTermObj.isToday);
+
+      renderBottomReminderBox(date);
+      updateSyncStatusUI();
+    }
+
+    function updateSyncStatusUI() {
+      const statusEl = document.getElementById("calSyncStatus");
+      const quickBtn = document.getElementById("syncQuickBtn");
+      const total = calendarEvents.length;
+      if (total > 0) {
+        statusEl.textContent = `已連結 ${total} 筆私人行程`;
+        statusEl.classList.add("ok");
+        quickBtn.textContent = `🔒 已連結 (${total})`;
+        quickBtn.classList.add("connected");
+      } else {
+        statusEl.textContent = "尚未連結";
+        statusEl.classList.remove("ok");
+        quickBtn.textContent = "📅 連結私人行事曆";
+        quickBtn.classList.remove("connected");
+      }
+    }
+
+    // ==================== Google 私人行事曆 OAuth 2.0 同步 ====================
+    async function fetchGoogleCalendarEvents(token) {
+      const start = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString();
+      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 4, 0).toISOString();
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(start)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=250`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Google 行事曆讀取失敗");
+      const data = await res.json();
+
+      calendarEvents = calendarEvents.filter(e => e.source !== "Google");
+      (data.items || []).forEach(item => {
+        if (item.status === "cancelled" || !item.summary) return;
+        let dateKey = "";
+        let timeStr = "全天";
+        if (item.start.date) {
+          dateKey = item.start.date;
+        } else if (item.start.dateTime) {
+          const dt = new Date(item.start.dateTime);
+          dateKey = formatDateKey(dt);
+          timeStr = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+        }
+        if (dateKey) {
+          calendarEvents.push({
+            id: item.id,
+            dateKey,
+            time: timeStr,
+            summary: item.summary,
+            source: "Google"
+          });
+        }
+      });
+
+      localStorage.setItem("white6_calendar_events", JSON.stringify(calendarEvents));
+      renderCalendar(currentDate);
+    }
+
+    document.getElementById("connectGoogleBtn").addEventListener("click", () => {
+      const clientId = DEFAULT_GOOGLE_CLIENT_ID || document.getElementById("googleClientIdInput").value.trim();
+      if (!clientId) {
+        document.getElementById("clientIdFieldWrap").style.display = "block";
+        alert("此網頁尚未預設 Google Client ID。\n\n若您是網站作者，請將 Client ID 填入程式碼頂端的 DEFAULT_GOOGLE_CLIENT_ID，一般使用者之後就只要點按鈕同意即可；或可先使用下方「匯入私人 .ics 檔」。");
+        return;
+      }
+      config.googleClientId = clientId;
+      localStorage.setItem("white6_calendar_cfg", JSON.stringify(config));
+
+      if (!window.google || !google.accounts || !google.accounts.oauth2) {
+        alert("Google 授權元件尚未載入完成，請確認網路連線後再試一次。");
+        return;
+      }
+
+      googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/calendar.readonly",
+        callback: async (tokenResponse) => {
+          if (tokenResponse && tokenResponse.access_token) {
+            googleAccessToken = tokenResponse.access_token;
+            document.getElementById("refreshGoogleBtn").style.display = "inline-block";
+            try {
+              await fetchGoogleCalendarEvents(googleAccessToken);
+              alert("Google 私人行事曆已連結完成！");
+            } catch (err) {
+              alert("同步時發生錯誤：" + err.message);
+            }
+          }
+        }
+      });
+      googleTokenClient.requestAccessToken({ prompt: "consent" });
+    });
+
+    document.getElementById("refreshGoogleBtn").addEventListener("click", async () => {
+      if (googleAccessToken) {
+        await fetchGoogleCalendarEvents(googleAccessToken);
+        alert("已更新最新 Google 行事曆行程！");
+      }
+    });
+
+    // ==================== 私人行事曆 (.ics) 解析與匯入 ====================
+    function parseIcsContent(icsText) {
+      const unfolded = icsText.replace(/\r?\n[ \t]/g, "");
+      const lines = unfolded.split(/\r?\n/);
+      const parsed = [];
+      let inEvent = false;
+      let cur = {};
+
+      for (const line of lines) {
+        if (line === "BEGIN:VEVENT") {
+          inEvent = true;
+          cur = {};
+        } else if (line === "END:VEVENT") {
+          inEvent = false;
+          if (cur.dateKey && cur.summary) {
+            parsed.push({
+              id: cur.uid || ("ics_" + Math.random().toString(36).slice(2)),
+              dateKey: cur.dateKey,
+              time: cur.time || "全天",
+              summary: cur.summary,
+              rrule: cur.rrule || "",
+              source: "手機行事曆"
+            });
+          }
+        } else if (inEvent) {
+          if (line.startsWith("SUMMARY")) {
+            cur.summary = line.split(":").slice(1).join(":").replace(/\\,/g, ",").replace(/\\n/g, " ");
+          } else if (line.startsWith("UID:")) {
+            cur.uid = line.slice(4).trim();
+          } else if (line.startsWith("RRULE:")) {
+            cur.rrule = line.slice(6).trim();
+          } else if (line.startsWith("DTSTART")) {
+            const val = line.split(":")[1]?.trim() || "";
+            if (/^\d{8}$/.test(val)) {
+              cur.dateKey = `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}`;
+              cur.time = "全天";
+            } else if (/^\d{8}T\d{6}Z$/.test(val)) {
+              const utcDate = new Date(`${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}T${val.slice(9, 11)}:${val.slice(11, 13)}:${val.slice(13, 15)}Z`);
+              cur.dateKey = formatDateKey(utcDate);
+              cur.time = `${String(utcDate.getHours()).padStart(2, "0")}:${String(utcDate.getMinutes()).padStart(2, "0")}`;
+            } else if (/^\d{8}T\d{6}/.test(val)) {
+              cur.dateKey = `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}`;
+              cur.time = `${val.slice(9, 11)}:${val.slice(11, 13)}`;
+            }
+          }
+        }
+      }
+      return parsed;
+    }
+
+    document.getElementById("importIcsBtn").addEventListener("click", () => {
+      document.getElementById("icsFileInput").click();
+    });
+
+    document.getElementById("icsFileInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const imported = parseIcsContent(ev.target.result);
+        calendarEvents = calendarEvents.filter(item => item.source !== "手機行事曆").concat(imported);
+        localStorage.setItem("white6_calendar_events", JSON.stringify(calendarEvents));
+        renderCalendar(currentDate);
+        alert(`已匯入 ${imported.length} 筆私人提醒事項！`);
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+
+    document.getElementById("addQuickNoteBtn").addEventListener("click", () => {
+      const title = prompt(`新增 ${formatDateKey(currentDate)} 的提醒事項：`);
+      if (!title || !title.trim()) return;
+      const timeInput = prompt("請輸入時間（例如 14:30，留空代表全天）：", "全天");
+      calendarEvents.push({
+        id: "local_" + Date.now(),
+        dateKey: formatDateKey(currentDate),
+        time: (timeInput && timeInput.trim()) || "全天",
+        summary: title.trim(),
+        source: "本機提醒"
+      });
+      localStorage.setItem("white6_calendar_events", JSON.stringify(calendarEvents));
+      renderCalendar(currentDate);
+    });
+
+    document.getElementById("clearEventsBtn").addEventListener("click", () => {
+      if (confirm("確定要清除本機已同步的行事曆提醒嗎？")) {
+        calendarEvents = [];
+        localStorage.removeItem("white6_calendar_events");
+        renderCalendar(currentDate);
+      }
+    });
+
+    // ==================== 撕紙動畫與互動 ====================
+    let isAnimating = false;
+    function tearToNextDay() {
+      if (isAnimating) return;
+      isAnimating = true;
+      playTearSound();
+
+      const pad = document.getElementById("padContainer");
+      const activeSheet = document.getElementById("activeSheet");
+
+      const flyingSheet = activeSheet.cloneNode(true);
+      flyingSheet.removeAttribute("id");
+      flyingSheet.classList.add("tearing");
+      pad.appendChild(flyingSheet);
+
+      currentDate.setDate(currentDate.getDate() + 1);
+      renderCalendar(currentDate);
+
+      setTimeout(() => {
+        flyingSheet.remove();
+        isAnimating = false;
+      }, 660);
+    }
+
+    document.getElementById("tearBtn").addEventListener("click", tearToNextDay);
+    document.getElementById("prevBtn").addEventListener("click", () => {
+      currentDate.setDate(currentDate.getDate() - 1);
+      renderCalendar(currentDate);
+    });
+    document.getElementById("todayBtn").addEventListener("click", () => {
+      currentDate = new Date();
+      renderCalendar(currentDate);
+    });
+
+    document.getElementById("adBox").addEventListener("click", (e) => {
+      e.stopPropagation();
+      openSettings();
+    });
+    document.getElementById("adBox").addEventListener("touchend", (e) => {
+      e.stopPropagation();
+      openSettings();
+    });
+
+    let touchStartY = 0;
+    const activeSheetEl = document.getElementById("activeSheet");
+    activeSheetEl.addEventListener("touchstart", e => {
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    activeSheetEl.addEventListener("touchend", e => {
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (dy > 35 || Math.abs(dy) < 8) tearToNextDay();
+    });
+    activeSheetEl.addEventListener("click", e => {
+      if (e.pointerType === "mouse") tearToNextDay();
+    });
+
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    function openSettings() {
+      document.getElementById("datePicker").value = formatDateKey(currentDate);
+      document.getElementById("sloganInput").value = config.slogan;
+      document.getElementById("adTitleInput").value = config.adTitle;
+      document.getElementById("adSubInput").value = config.adSub;
+      document.getElementById("colorModeSelect").value = config.colorMode;
+      document.getElementById("googleClientIdInput").value = config.googleClientId;
+
+      // 若程式已預設 Client ID，隱藏技術輸入框讓一般使用者介面更乾淨
+      document.getElementById("clientIdFieldWrap").style.display = DEFAULT_GOOGLE_CLIENT_ID ? "none" : "block";
+      const baseUrl = window.location.origin + window.location.pathname;
+      document.getElementById("shortcutUrlHint").textContent = `${baseUrl}?events=2026-11-26|14:00|行程標題`;
+
+      updateSyncStatusUI();
+      modalBackdrop.classList.add("open");
+    }
+
+    document.getElementById("settingsBtn").addEventListener("click", openSettings);
+    document.getElementById("syncQuickBtn").addEventListener("click", openSettings);
+    document.getElementById("headerBoard").addEventListener("click", openSettings);
+    document.getElementById("cancelModalBtn").addEventListener("click", () => modalBackdrop.classList.remove("open"));
+    document.getElementById("closeXBtn").addEventListener("click", () => modalBackdrop.classList.remove("open"));
+
+    document.getElementById("saveModalBtn").addEventListener("click", () => {
+      const picked = document.getElementById("datePicker").value;
+      if (picked) {
+        const [py, pm, pd] = picked.split("-").map(Number);
+        currentDate = new Date(py, pm - 1, pd);
+      }
+      config.slogan = document.getElementById("sloganInput").value.trim() || "萬事如意";
+      config.adTitle = document.getElementById("adTitleInput").value.trim() || "𓃥 白六每日好心情";
+      config.adSub = document.getElementById("adSubInput").value.trim() || "平安順心・日日是好日";
+      config.colorMode = document.getElementById("colorModeSelect").value;
+      if (!DEFAULT_GOOGLE_CLIENT_ID) {
+        config.googleClientId = document.getElementById("googleClientIdInput").value.trim();
+      }
+
+      localStorage.setItem("white6_calendar_cfg", JSON.stringify(config));
+      renderCalendar(currentDate);
+      modalBackdrop.classList.remove("open");
+    });
+
+    // 啟動時先檢查是否有來自 iPhone 捷徑的本機行程參數，再渲染畫面
+    ingestUrlEventsIfPresent();
+    renderCalendar(currentDate);
+  </script>
+</body>
+</html>
