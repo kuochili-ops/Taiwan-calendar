@@ -685,9 +685,9 @@
           <button type="button" class="btn-mini" id="refreshGoogleBtn" style="display:none;">重新同步</button>
         </div>
 
-        <!-- 進階開發者 Client ID（若未預填才顯示） -->
+        <!-- 進階開發者 Client ID（已預填故預設隱藏） -->
         <div class="field" id="clientIdFieldWrap" style="display:none;">
-          <label>開發者 Google Client ID（填入程式碼後此欄自動隱藏）</label>
+          <label>開發者 Google Client ID</label>
           <input type="text" id="googleClientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com" />
         </div>
 
@@ -749,11 +749,8 @@
   </div>
 
   <script>
-    // =========================================================================
-    // 【作者設定區】在這裡填入你的 Google OAuth Client ID 後部署，
-    // 一般使用者打開網頁時就會隱藏輸入框，直接點按鈕按「同意」就能連結自己的私人行事曆！
-    const DEFAULT_GOOGLE_CLIENT_ID = "";
-    // =========================================================================
+    // 已內建專屬 Google OAuth Client ID，一般使用者開啟時免填寫即可一鍵授權
+    const DEFAULT_GOOGLE_CLIENT_ID = "216197154623-vof7av15t6rtif5iskdrdjt32eb7fn6o.apps.googleusercontent.com";
 
     const MONTH_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
     const WEEKDAYS_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
@@ -824,7 +821,6 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // 接收從 iPhone 捷徑 (URL ?events=YYYY-MM-DD|HH:MM|標題;...) 傳入的本機私人行事曆
     function ingestUrlEventsIfPresent() {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -854,7 +850,6 @@
         if (incoming.length > 0) {
           calendarEvents = calendarEvents.filter(e => e.source !== "手機行事曆").concat(incoming);
           localStorage.setItem("white6_calendar_events", JSON.stringify(calendarEvents));
-          // 清除網址參數保持乾淨
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       } catch (e) {}
@@ -1258,7 +1253,7 @@
       const clientId = DEFAULT_GOOGLE_CLIENT_ID || document.getElementById("googleClientIdInput").value.trim();
       if (!clientId) {
         document.getElementById("clientIdFieldWrap").style.display = "block";
-        alert("此網頁尚未預設 Google Client ID。\n\n若您是網站作者，請將 Client ID 填入程式碼頂端的 DEFAULT_GOOGLE_CLIENT_ID，一般使用者之後就只要點按鈕同意即可；或可先使用下方「匯入私人 .ics 檔」。");
+        alert("請先設定 Google Client ID。");
         return;
       }
       config.googleClientId = clientId;
@@ -1452,7 +1447,6 @@
       document.getElementById("colorModeSelect").value = config.colorMode;
       document.getElementById("googleClientIdInput").value = config.googleClientId;
 
-      // 若程式已預設 Client ID，隱藏技術輸入框讓一般使用者介面更乾淨
       document.getElementById("clientIdFieldWrap").style.display = DEFAULT_GOOGLE_CLIENT_ID ? "none" : "block";
       const baseUrl = window.location.origin + window.location.pathname;
       document.getElementById("shortcutUrlHint").textContent = `${baseUrl}?events=2026-11-26|14:00|行程標題`;
@@ -1486,7 +1480,6 @@
       modalBackdrop.classList.remove("open");
     });
 
-    // 啟動時先檢查是否有來自 iPhone 捷徑的本機行程參數，再渲染畫面
     ingestUrlEventsIfPresent();
     renderCalendar(currentDate);
   </script>
